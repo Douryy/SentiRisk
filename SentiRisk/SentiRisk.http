@@ -1,0 +1,6 @@
+@SentiRisk_HostAddress = http://localhost:5089
+
+GET {{SentiRisk_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
