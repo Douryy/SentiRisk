@@ -1,20 +1,19 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace SentiRisk.Models
 {
-    public class Portfolio
+    public class Asset
     {
-        
         public int Id { get; set; }
         [Required]
         public string? Name { get; set; } = string.Empty;
         [Required]
-        public string? Description { get; set; } = string.Empty;
-
-        [ForeignKey("User")]
-        public int UserId { get; set;}
-        public virtual User? User { get; set; }
+        public string? Ticker { get; set; } = string.Empty;
+        [Required]
+        public string? Sector { get; set; } = string.Empty;
+        [Required]
+        public decimal CurrentPrice { get; set; }
         public virtual ICollection<PortfolioAsset>? ListePortfolioAssets { get; set; }
+        public virtual ICollection<News>? ListeNews { get; set; }
     }
 }

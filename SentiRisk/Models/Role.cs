@@ -6,7 +6,7 @@ namespace SentiRisk.Models
     {
         public int Id { get; set; }
         [Required]
-        public string? Name { get; set; }    
+        public string? Name { get; set; } = string.Empty;
         public virtual ICollection<User>? ListeUsers { get; set; }
     }
 }
