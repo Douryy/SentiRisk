@@ -32,7 +32,11 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Asset>> GetAsset(int id)
         {
-            var asset = await _context.Asset.FindAsync(id);
+            //  var asset = await _context.Asset.FindAsync(id);
+            var asset = await _context.Asset
+                  .Include(a => a.ListeNews!)
+                      .ThenInclude(n => n.ListeSentimentScores)
+                  .FirstOrDefaultAsync(a => a.Id == id);
 
             if (asset == null)
             {
@@ -78,6 +82,16 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<Asset>> PostAsset(Asset asset)
         {
+            // 1. Normalisation : Ticker toujours en majuscules
+            asset.Ticker = asset.Ticker?.ToUpper();
+
+            // 2. Sécurité : Prix positif uniquement
+            if (asset.CurrentPrice < 0) return BadRequest("Le prix ne peut pas être négatif.");
+
+            // 3. Unicité : Pas deux fois le même Ticker en base
+            if (await _context.Asset.AnyAsync(a => a.Ticker == asset.Ticker))
+                return Conflict("Cet actif existe déjà (Ticker en double).");
+
             _context.Asset.Add(asset);
             await _context.SaveChangesAsync();
 
@@ -92,6 +106,12 @@ namespace SentiRisk.Controllers
             if (asset == null)
             {
                 return NotFound();
+               
+            }
+            var isUsed = await _context.PortfolioAsset.AnyAsync(pa => pa.AssetId == id);
+            if (isUsed)
+            {
+                return BadRequest("Impossible de supprimer : l'actif est présent dans un portfolio.");
             }
 
             _context.Asset.Remove(asset);

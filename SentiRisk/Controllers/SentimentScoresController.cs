@@ -32,7 +32,10 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<SentimentScore>> GetSentimentScore(int id)
         {
-            var sentimentScore = await _context.SentimentScore.FindAsync(id);
+            // var sentimentScore = await _context.SentimentScore.FindAsync(id);
+            var sentimentScore = await _context.SentimentScore
+         .Include(s => s.News)
+         .FirstOrDefaultAsync(s => s.Id == id);
 
             if (sentimentScore == null)
             {
@@ -78,6 +81,19 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<SentimentScore>> PostSentimentScore(SentimentScore sentimentScore)
         {
+            // 1. Validation de la dépendance : La News doit exister
+            if (!await _context.News.AnyAsync(n => n.Id == sentimentScore.NewsId))
+            {
+                return BadRequest("La News (NewsId) spécifiée n'existe pas.");
+            }
+
+            // 2. Optionnel : Validation des plages de données (Métier)
+            // Par exemple : Score entre -1 et 1, Confidence entre 0 et 1
+            if (sentimentScore.Confidence < 0 || sentimentScore.Confidence > 1)
+            {
+                return BadRequest("La confiance (Confidence) doit être comprise entre 0 et 1.");
+            }
+
             _context.SentimentScore.Add(sentimentScore);
             await _context.SaveChangesAsync();
 

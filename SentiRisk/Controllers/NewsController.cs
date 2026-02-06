@@ -32,7 +32,11 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<News>> GetNews(int id)
         {
-            var news = await _context.News.FindAsync(id);
+            //var news = await _context.News.FindAsync(id);
+            var news = await _context.News
+        .Include(n => n.Asset)
+        .Include(n => n.ListeSentimentScores)
+        .FirstOrDefaultAsync(n => n.Id == id);
 
             if (news == null)
             {
@@ -78,6 +82,18 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<News>> PostNews(News news)
         {
+            // 1. Vérifier si l'Asset parent existe
+            if (!await _context.Asset.AnyAsync(a => a.Id == news.AssetId))
+            {
+                return BadRequest("L'AssetId spécifié n'existe pas. Impossible de créer la news.");
+            }
+
+            // 2. Initialiser la date si elle est vide (confort pour Postman)
+            if (news.PublishedDate == default)
+            {
+                news.PublishedDate = DateTime.Now;
+            }
+
             _context.News.Add(news);
             await _context.SaveChangesAsync();
 
@@ -92,6 +108,11 @@ namespace SentiRisk.Controllers
             if (news == null)
             {
                 return NotFound();
+            }
+            var hasScores = await _context.SentimentScore.AnyAsync(s => s.NewsId == id);
+            if (hasScores)
+            {
+                return BadRequest("Impossible de supprimer cette news : elle possède des scores de sentiment rattachés.");
             }
 
             _context.News.Remove(news);
