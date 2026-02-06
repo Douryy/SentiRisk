@@ -7,7 +7,15 @@ builder.Services.AddDbContext<SentiRiskContext>(options =>
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+.AddJsonOptions(options =>
+ {
+     // Cette ligne coupe la boucle infinie
+     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+
+     // Optionnel : rend le JSON plus lisible (indentation)
+     options.JsonSerializerOptions.WriteIndented = true;
+ });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
@@ -28,7 +36,7 @@ app.MapControllers();
 using (var serviceScope = app.Services.GetService<IServiceScopeFactory>().CreateScope())
 {
     var context = serviceScope.ServiceProvider.GetRequiredService<SentiRiskContext>();
-    context.Database.EnsureDeleted();
+   // context.Database.EnsureDeleted();
     context.Database.EnsureCreated();
 }
 

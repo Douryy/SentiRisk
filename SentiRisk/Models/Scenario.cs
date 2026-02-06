@@ -14,6 +14,10 @@ namespace SentiRisk.Models
         [Required]
         public string? TargetSector { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
+        public Scenario()
+        {
+            CreatedAt = DateTime.Now;
+        }
 
     }
 }
