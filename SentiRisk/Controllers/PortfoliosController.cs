@@ -32,7 +32,8 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Portfolio>> GetPortfolio(int id)
         {
-            var portfolio = await _context.Portfolio.FindAsync(id);
+            // var portfolio = await _context.Portfolio.FindAsync(id);
+            var portfolio = await _context.Portfolio.Include(p => p.User).Include(p => p.ListePortfolioAssets!).ThenInclude(pa => pa.Asset).FirstOrDefaultAsync(p => p.Id == id);
 
             if (portfolio == null)
             {
@@ -78,6 +79,12 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<Portfolio>> PostPortfolio(Portfolio portfolio)
         {
+            // Vérification : l'utilisateur propriétaire doit exister
+            if (!await _context.User.AnyAsync(u => u.Id == portfolio.UserId))
+            {
+                return BadRequest("L'utilisateur (UserId) spécifié n'existe pas.");
+            }
+
             _context.Portfolio.Add(portfolio);
             await _context.SaveChangesAsync();
 

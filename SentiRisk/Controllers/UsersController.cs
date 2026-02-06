@@ -32,7 +32,8 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<User>> GetUser(int id)
         {
-            var user = await _context.User.FindAsync(id);
+            //var user = await _context.User.FindAsync(id);
+            var user = await _context.User.Include(u => u.Role).Include(u => u.ListePortfolios).FirstOrDefaultAsync(u => u.Id == id);
 
             if (user == null)
             {
@@ -78,6 +79,18 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<User>> PostUser(User user)
         {
+            // 1. Vérifier si le rôle existe
+            if (!await _context.Role.AnyAsync(r => r.Id == user.RoleId))
+            {
+                return BadRequest("Le RoleId spécifié n'existe pas.");
+            }
+
+            // 2. Vérifier si l'email ou l'username est déjà pris
+            if (await _context.User.AnyAsync(u => u.Email == user.Email || u.UserName == user.UserName))
+            {
+                return Conflict("L'utilisateur ou l'email existe déjà.");
+            }
+
             _context.User.Add(user);
             await _context.SaveChangesAsync();
 

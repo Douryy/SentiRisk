@@ -16,6 +16,6 @@ namespace SentiRisk.Models
         [ForeignKey("Role")]
         public int RoleId { get; set; }
         public virtual Role? Role { get; set; }
-        public virtual ICollection<Portfolio>? ListePortfolio { get; set; }
+        public virtual ICollection<Portfolio>? ListePortfolios { get; set; }
     }
 }

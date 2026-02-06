@@ -75,9 +75,16 @@ namespace SentiRisk.Controllers
 
         // POST: api/Roles
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+       
         [HttpPost]
         public async Task<ActionResult<Role>> PostRole(Role role)
         {
+            // 1. Empêcher les doublons de noms de rôles (ex: deux rôles "Admin")
+            if (await _context.Role.AnyAsync(r => r.Name == role.Name))
+            {
+                return Conflict("Un rôle avec ce nom existe déjà.");
+            }
+
             _context.Role.Add(role);
             await _context.SaveChangesAsync();
 
@@ -94,12 +101,19 @@ namespace SentiRisk.Controllers
                 return NotFound();
             }
 
+            // 2. Vérification de la dépendance User
+            // On ne peut pas supprimer un rôle si des utilisateurs y sont rattachés
+            var hasUsers = await _context.User.AnyAsync(u => u.RoleId == id);
+            if (hasUsers)
+            {
+                return BadRequest("Impossible de supprimer ce rôle car il est utilisé par des utilisateurs.");
+            }
+
             _context.Role.Remove(role);
             await _context.SaveChangesAsync();
 
             return NoContent();
         }
-
         private bool RoleExists(int id)
         {
             return _context.Role.Any(e => e.Id == id);
