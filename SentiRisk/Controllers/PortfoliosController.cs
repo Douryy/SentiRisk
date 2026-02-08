@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentiRisk.Data;
 using SentiRisk.Models;
+using SentiRisk.Services;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace SentiRisk.Controllers
 {
@@ -15,10 +16,17 @@ namespace SentiRisk.Controllers
     public class PortfoliosController : ControllerBase
     {
         private readonly SentiRiskContext _context;
+        private readonly PortfolioCalculationService _calcService;
+        private readonly StressTestService _stressService;
+        private readonly SentimentService _sentimentService;
 
-        public PortfoliosController(SentiRiskContext context)
+
+        public PortfoliosController(SentiRiskContext context, PortfolioCalculationService calcService, StressTestService stressService, SentimentService sentimentService)
         {
             _context = context;
+            _calcService = calcService; // On lie le service injecté à notre variable
+            _stressService = stressService;
+            _sentimentService = sentimentService;
         }
 
         // GET: api/Portfolios
@@ -42,7 +50,32 @@ namespace SentiRisk.Controllers
 
             return portfolio;
         }
+        [HttpGet("{id}/value")]
+        public async Task<ActionResult> GetValue(int id)
+        {
+            var result = await _calcService.GetPortfolioValue(id);
+            if (result == null) return NotFound();
+            return Ok(result);
+        }
+        [HttpGet("{id}/simulate/{scenarioId}")]
+        public async Task<ActionResult> Simulate(int id, int scenarioId)
+        {
+            var result = await _stressService.SimulateScenario(id, scenarioId);
 
+            if (result == null)
+            {
+                return NotFound("Portfolio ou Scénario introuvable.");
+            }
+
+            return Ok(result);
+        }
+        [HttpGet("{id}/weather")]
+        public async Task<ActionResult> GetWeather(int id)
+        {
+            var weather = await _sentimentService.GetPortfolioWeather(id);
+            if (weather == null) return NotFound();
+            return Ok(weather);
+        }
         // PUT: api/Portfolios/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]

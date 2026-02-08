@@ -1,17 +1,28 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentiRisk.Data;
+using SentiRisk.Services;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<SentiRiskContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("SentiRiskContext") ?? throw new InvalidOperationException("Connection string 'SentiRiskContext' not found.")));
 
 // Add services to the container.
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Ce paramètre ignore les cycles de référence lors de la génération du JSON
+        options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+
+        // Optionnel : Pour que le JSON soit plus lisible dans Postman
+        options.JsonSerializerOptions.WriteIndented = true;
+    });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
+builder.Services.AddScoped<PortfolioCalculationService>();
+builder.Services.AddScoped<StressTestService>();
+builder.Services.AddScoped<SentimentService>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -28,7 +39,7 @@ app.MapControllers();
 using (var serviceScope = app.Services.GetService<IServiceScopeFactory>().CreateScope())
 {
     var context = serviceScope.ServiceProvider.GetRequiredService<SentiRiskContext>();
-    context.Database.EnsureDeleted();
+    //context.Database.EnsureDeleted();
     context.Database.EnsureCreated();
 }
 

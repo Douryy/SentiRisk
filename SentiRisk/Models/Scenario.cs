@@ -13,7 +13,8 @@ namespace SentiRisk.Models
         public decimal ImpactFactor { get; set; }
         [Required]
         public string? TargetSector { get; set; } = string.Empty;
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
+
 
     }
 }

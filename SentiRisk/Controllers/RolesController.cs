@@ -32,7 +32,10 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<Role>> GetRole(int id)
         {
-            var role = await _context.Role.FindAsync(id);
+            // var role = await _context.Role.FindAsync(id);
+            var role = await _context.Role
+        .Include(r => r.ListeUsers) 
+        .FirstOrDefaultAsync(r => r.Id == id);
 
             if (role == null)
             {
