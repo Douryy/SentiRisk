@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentiRisk.Data;
-using SentiRisk.Services;
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<SentiRiskContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("SentiRiskContext") ?? throw new InvalidOperationException("Connection string 'SentiRiskContext' not found.")));
@@ -20,9 +20,7 @@ builder.Services.AddControllers()
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddScoped<PortfolioCalculationService>();
-builder.Services.AddScoped<StressTestService>();
-builder.Services.AddScoped<SentimentService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
