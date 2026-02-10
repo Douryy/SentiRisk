@@ -25,18 +25,20 @@ namespace SentiRisk.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<News>>> GetNews()
         {
-            return await _context.News.ToListAsync();
+            return await _context.News
+                .Include(n => n.Asset)
+                .Include(n => n.ListeSentimentScores)
+                .ToListAsync();
         }
 
         // GET: api/News/5
         [HttpGet("{id}")]
         public async Task<ActionResult<News>> GetNews(int id)
         {
-            //var news = await _context.News.FindAsync(id);
             var news = await _context.News
-        .Include(n => n.Asset)
-        .Include(n => n.ListeSentimentScores)
-        .FirstOrDefaultAsync(n => n.Id == id);
+                .Include(n => n.Asset)
+                .Include(n => n.ListeSentimentScores)
+                .FirstOrDefaultAsync(n => n.Id == id);
 
             if (news == null)
             {
@@ -82,13 +84,13 @@ namespace SentiRisk.Controllers
         [HttpPost]
         public async Task<ActionResult<News>> PostNews(News news)
         {
-            // 1. Vérifier si l'Asset parent existe
+            // Vérification : l'actif doit exister
             if (!await _context.Asset.AnyAsync(a => a.Id == news.AssetId))
             {
-                return BadRequest("L'AssetId spécifié n'existe pas. Impossible de créer la news.");
+                return BadRequest("L'actif (AssetId) spécifié n'existe pas.");
             }
 
-            // 2. Initialiser la date si elle est vide (confort pour Postman)
+            // Si la date de publication n'est pas fournie, utiliser now
             if (news.PublishedDate == default)
             {
                 news.PublishedDate = DateTime.Now;
@@ -97,7 +99,13 @@ namespace SentiRisk.Controllers
             _context.News.Add(news);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetNews", new { id = news.Id }, news);
+            // Recharger pour inclure les relations si besoin
+            var created = await _context.News
+                .Include(n => n.Asset)
+                .Include(n => n.ListeSentimentScores)
+                .FirstOrDefaultAsync(n => n.Id == news.Id);
+
+            return CreatedAtAction("GetNews", new { id = news.Id }, created);
         }
 
         // DELETE: api/News/5
@@ -109,10 +117,12 @@ namespace SentiRisk.Controllers
             {
                 return NotFound();
             }
-            var hasScores = await _context.SentimentScore.AnyAsync(s => s.NewsId == id);
-            if (hasScores)
+
+            // Supprimer les scores de sentiment associés (si cascade non configurée)
+            var scores = await _context.SentimentScore.Where(s => s.NewsId == id).ToListAsync();
+            if (scores.Any())
             {
-                return BadRequest("Impossible de supprimer cette news : elle possède des scores de sentiment rattachés.");
+                _context.SentimentScore.RemoveRange(scores);
             }
 
             _context.News.Remove(news);

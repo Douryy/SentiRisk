@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.9.34728.123
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentiRisk", "SentiRisk\SentiRisk.csproj", "{3FF5FA64-F686-45B1-BD3F-68B5CE55B3D1}"
+	ProjectSection(ProjectDependencies) = postProject
+		{12EFED86-FC3D-446A-BC6B-F5ADC0D6C6AC} = {12EFED86-FC3D-446A-BC6B-F5ADC0D6C6AC}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentiRiskWeb", "SentiRiskWeb\SentiRiskWeb.csproj", "{12EFED86-FC3D-446A-BC6B-F5ADC0D6C6AC}"
 EndProject

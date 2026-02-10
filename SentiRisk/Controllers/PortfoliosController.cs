@@ -1,13 +1,12 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using SentiRisk.Data;
-using SentiRisk.Models;
-
+﻿
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SentiRisk.Data;
+using SentiRisk.Models;
 
 namespace SentiRisk.Controllers
 {
@@ -16,47 +15,79 @@ namespace SentiRisk.Controllers
     public class PortfoliosController : ControllerBase
     {
         private readonly SentiRiskContext _context;
-        
 
         public PortfoliosController(SentiRiskContext context)
         {
             _context = context;
-            
         }
 
         // GET: api/Portfolios
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Portfolio>>> GetPortfolio()
+        public async Task<ActionResult<IEnumerable<ApiPortfolioDto>>> GetPortfolio()
         {
-            return await _context.Portfolio.ToListAsync();
+            var portfolios = await _context.Portfolio
+                .Include(p => p.ListePortfolioAssets!)
+                    .ThenInclude(pa => pa.Asset)
+                .ToListAsync();
+
+            return portfolios.Select(MapToApi).ToList();
         }
 
         // GET: api/Portfolios/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Portfolio>> GetPortfolio(int id)
+        public async Task<ActionResult<ApiPortfolioDto>> GetPortfolio(int id)
         {
-            // var portfolio = await _context.Portfolio.FindAsync(id);
-            var portfolio = await _context.Portfolio.Include(p => p.User).Include(p => p.ListePortfolioAssets!).ThenInclude(pa => pa.Asset).FirstOrDefaultAsync(p => p.Id == id);
+            var portfolio = await _context.Portfolio
+                .Include(p => p.User)
+                .Include(p => p.ListePortfolioAssets!)
+                    .ThenInclude(pa => pa.Asset)
+                .FirstOrDefaultAsync(p => p.Id == id);
 
             if (portfolio == null)
             {
                 return NotFound();
             }
 
-            return portfolio;
+            return MapToApi(portfolio);
         }
-       
+
         // PUT: api/Portfolios/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutPortfolio(int id, Portfolio portfolio)
+        public async Task<IActionResult> PutPortfolio(int id, ApiPortfolioCreateDto dto)
         {
-            if (id != portfolio.Id)
+            if (dto == null) return BadRequest();
+
+            var existing = await _context.Portfolio
+                .Include(p => p.ListePortfolioAssets!)
+                .FirstOrDefaultAsync(p => p.Id == id);
+
+            if (existing == null) return NotFound();
+
+            if (!await _context.User.AnyAsync(u => u.Id == dto.UserId))
             {
-                return BadRequest();
+                return BadRequest("L'utilisateur (UserId) spécifié n'existe pas.");
             }
 
-            _context.Entry(portfolio).State = EntityState.Modified;
+            existing.Name = dto.Name;
+            existing.Description = dto.Description;
+
+            // Replace assets collection (simplifié)
+            existing.ListePortfolioAssets ??= new List<PortfolioAsset>();
+            existing.ListePortfolioAssets.Clear();
+            if (dto.PortfolioAssets != null)
+            {
+                foreach (var pa in dto.PortfolioAssets)
+                {
+                    existing.ListePortfolioAssets.Add(new PortfolioAsset
+                    {
+                        PortfolioId = existing.Id,
+                        AssetId = pa.AssetId,
+                        Weight = pa.Weight
+                    });
+                }
+            }
+
+            _context.Entry(existing).State = EntityState.Modified;
 
             try
             {
@@ -64,34 +95,45 @@ namespace SentiRisk.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!PortfolioExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                if (!PortfolioExists(id)) return NotFound();
+                throw;
             }
 
             return NoContent();
         }
 
         // POST: api/Portfolios
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Portfolio>> PostPortfolio(Portfolio portfolio)
+        public async Task<ActionResult<ApiPortfolioDto>> PostPortfolio(ApiPortfolioCreateDto dto)
         {
-            // Vérification : l'utilisateur propriétaire doit exister
-            if (!await _context.User.AnyAsync(u => u.Id == portfolio.UserId))
+            if (dto == null) return BadRequest();
+
+            if (!await _context.User.AnyAsync(u => u.Id == dto.UserId))
             {
                 return BadRequest("L'utilisateur (UserId) spécifié n'existe pas.");
             }
 
+            var portfolio = new Portfolio
+            {
+                Name = dto.Name,
+                Description = dto.Description,
+                UserId = dto.UserId,
+                ListePortfolioAssets = dto.PortfolioAssets?.Select(pa => new PortfolioAsset
+                {
+                    AssetId = pa.AssetId,
+                    Weight = pa.Weight
+                }).ToList()
+            };
+
             _context.Portfolio.Add(portfolio);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetPortfolio", new { id = portfolio.Id }, portfolio);
+            var created = await _context.Portfolio
+                .Include(p => p.ListePortfolioAssets!)
+                    .ThenInclude(pa => pa.Asset)
+                .FirstOrDefaultAsync(p => p.Id == portfolio.Id);
+
+            return CreatedAtAction(nameof(GetPortfolio), new { id = portfolio.Id }, MapToApi(created!));
         }
 
         // DELETE: api/Portfolios/5
@@ -99,10 +141,7 @@ namespace SentiRisk.Controllers
         public async Task<IActionResult> DeletePortfolio(int id)
         {
             var portfolio = await _context.Portfolio.FindAsync(id);
-            if (portfolio == null)
-            {
-                return NotFound();
-            }
+            if (portfolio == null) return NotFound();
 
             _context.Portfolio.Remove(portfolio);
             await _context.SaveChangesAsync();
@@ -113,6 +152,39 @@ namespace SentiRisk.Controllers
         private bool PortfolioExists(int id)
         {
             return _context.Portfolio.Any(e => e.Id == id);
+        }
+
+        // Mapping helper
+        private static ApiPortfolioDto MapToApi(Portfolio p)
+        {
+            var dto = new ApiPortfolioDto
+            {
+                Id = p.Id,
+                Name = p.Name ?? string.Empty,
+                Description = p.Description ?? string.Empty,
+                PortfolioAssets = new List<ApiPortfolioAssetDto>()
+            };
+
+            if (p.ListePortfolioAssets != null)
+            {
+                foreach (var pa in p.ListePortfolioAssets)
+                {
+                    dto.PortfolioAssets!.Add(new ApiPortfolioAssetDto
+                    {
+                        Weight = pa.Weight,
+                        Asset = pa.Asset == null ? null : new ApiAssetDto
+                        {
+                            Id = pa.Asset.Id,
+                            Name = pa.Asset.Name ?? string.Empty,
+                            Ticker = pa.Asset.Ticker ?? string.Empty,
+                            Sector = pa.Asset.Sector ?? string.Empty,
+                            CurrentPrice = pa.Asset.CurrentPrice
+                        }
+                    });
+                }
+            }
+
+            return dto;
         }
     }
 }

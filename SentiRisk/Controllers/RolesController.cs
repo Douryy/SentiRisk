@@ -23,39 +23,62 @@ namespace SentiRisk.Controllers
 
         // GET: api/Roles
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Role>>> GetRole()
+        public async Task<ActionResult<IEnumerable<ApiRoleDto>>> GetRole()
         {
-            return await _context.Role.ToListAsync();
+            var roles = await _context.Role.ToListAsync();
+            return roles.Select(r => new ApiRoleDto
+            {
+                Id = r.Id,
+                Name = r.Name ?? string.Empty
+            }).ToList();
         }
 
         // GET: api/Roles/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Role>> GetRole(int id)
+        public async Task<ActionResult<ApiRoleDto>> GetRole(int id)
         {
-            // var role = await _context.Role.FindAsync(id);
             var role = await _context.Role
-        .Include(r => r.ListeUsers) 
-        .FirstOrDefaultAsync(r => r.Id == id);
+                .Include(r => r.ListeUsers)
+                .FirstOrDefaultAsync(r => r.Id == id);
 
             if (role == null)
             {
                 return NotFound();
             }
 
-            return role;
+            return new ApiRoleDto
+            {
+                Id = role.Id,
+                Name = role.Name ?? string.Empty
+            };
         }
 
         // PUT: api/Roles/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutRole(int id, Role role)
+        public async Task<IActionResult> PutRole(int id, ApiRoleCreateDto dto)
         {
-            if (id != role.Id)
+            if (dto == null)
             {
                 return BadRequest();
             }
 
-            _context.Entry(role).State = EntityState.Modified;
+            var existing = await _context.Role.FindAsync(id);
+            if (existing == null)
+            {
+                return NotFound();
+            }
+
+            // Empêcher les doublons de noms de rôles (sauf si c'est le même rôle)
+            var duplicate = await _context.Role.AnyAsync(r => r.Name == dto.Name && r.Id != id);
+            if (duplicate)
+            {
+                return Conflict("Un rôle avec ce nom existe déjà.");
+            }
+
+            existing.Name = dto.Name;
+
+            _context.Entry(existing).State = EntityState.Modified;
 
             try
             {
@@ -77,21 +100,35 @@ namespace SentiRisk.Controllers
         }
 
         // POST: api/Roles
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-       
         [HttpPost]
-        public async Task<ActionResult<Role>> PostRole(Role role)
+        public async Task<ActionResult<ApiRoleDto>> PostRole(ApiRoleCreateDto dto)
         {
+            if (dto == null)
+            {
+                return BadRequest();
+            }
+
             // 1. Empêcher les doublons de noms de rôles (ex: deux rôles "Admin")
-            if (await _context.Role.AnyAsync(r => r.Name == role.Name))
+            if (await _context.Role.AnyAsync(r => r.Name == dto.Name))
             {
                 return Conflict("Un rôle avec ce nom existe déjà.");
             }
 
+            var role = new Role
+            {
+                Name = dto.Name
+            };
+
             _context.Role.Add(role);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetRole", new { id = role.Id }, role);
+            var responseDto = new ApiRoleDto
+            {
+                Id = role.Id,
+                Name = role.Name ?? string.Empty
+            };
+
+            return CreatedAtAction("GetRole", new { id = responseDto.Id }, responseDto);
         }
 
         // DELETE: api/Roles/5
@@ -105,7 +142,6 @@ namespace SentiRisk.Controllers
             }
 
             // 2. Vérification de la dépendance User
-            // On ne peut pas supprimer un rôle si des utilisateurs y sont rattachés
             var hasUsers = await _context.User.AnyAsync(u => u.RoleId == id);
             if (hasUsers)
             {
@@ -117,6 +153,7 @@ namespace SentiRisk.Controllers
 
             return NoContent();
         }
+
         private bool RoleExists(int id)
         {
             return _context.Role.Any(e => e.Id == id);

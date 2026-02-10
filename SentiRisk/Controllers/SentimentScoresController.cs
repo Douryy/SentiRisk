@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentiRisk.Data;
@@ -32,30 +31,26 @@ namespace SentiRisk.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<SentimentScore>> GetSentimentScore(int id)
         {
-            // var sentimentScore = await _context.SentimentScore.FindAsync(id);
             var sentimentScore = await _context.SentimentScore
-         .Include(s => s.News)
-         .FirstOrDefaultAsync(s => s.Id == id);
+                .Include(s => s.News)
+                .FirstOrDefaultAsync(s => s.Id == id);
 
-            if (sentimentScore == null)
-            {
-                return NotFound();
-            }
+            if (sentimentScore == null) return NotFound();
 
             return sentimentScore;
         }
 
         // PUT: api/SentimentScores/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutSentimentScore(int id, SentimentScore sentimentScore)
+        public async Task<IActionResult> PutSentimentScore(int id, SentimentScore dto)
         {
-            if (id != sentimentScore.Id)
-            {
-                return BadRequest();
-            }
+            if (id != dto.Id) return BadRequest();
 
-            _context.Entry(sentimentScore).State = EntityState.Modified;
+            // Validation de la news
+            if (!await _context.News.AnyAsync(n => n.Id == dto.NewsId))
+                return BadRequest("La News (NewsId) spécifiée n'existe pas.");
+
+            _context.Entry(dto).State = EntityState.Modified;
 
             try
             {
@@ -63,41 +58,27 @@ namespace SentiRisk.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!SentimentScoreExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                if (!SentimentScoreExists(id)) return NotFound();
+                throw;
             }
 
             return NoContent();
         }
 
         // POST: api/SentimentScores
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<SentimentScore>> PostSentimentScore(SentimentScore sentimentScore)
+        public async Task<ActionResult<SentimentScore>> PostSentimentScore(SentimentScore dto)
         {
-            // 1. Validation de la dépendance : La News doit exister
-            if (!await _context.News.AnyAsync(n => n.Id == sentimentScore.NewsId))
-            {
+            if (!await _context.News.AnyAsync(n => n.Id == dto.NewsId))
                 return BadRequest("La News (NewsId) spécifiée n'existe pas.");
-            }
 
-            // 2. Optionnel : Validation des plages de données (Métier)
-            // Par exemple : Score entre -1 et 1, Confidence entre 0 et 1
-            if (sentimentScore.Confidence < 0 || sentimentScore.Confidence > 1)
-            {
+            if (dto.Confidence < 0 || dto.Confidence > 1)
                 return BadRequest("La confiance (Confidence) doit être comprise entre 0 et 1.");
-            }
 
-            _context.SentimentScore.Add(sentimentScore);
+            _context.SentimentScore.Add(dto);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetSentimentScore", new { id = sentimentScore.Id }, sentimentScore);
+            return CreatedAtAction(nameof(GetSentimentScore), new { id = dto.Id }, dto);
         }
 
         // DELETE: api/SentimentScores/5
@@ -105,10 +86,7 @@ namespace SentiRisk.Controllers
         public async Task<IActionResult> DeleteSentimentScore(int id)
         {
             var sentimentScore = await _context.SentimentScore.FindAsync(id);
-            if (sentimentScore == null)
-            {
-                return NotFound();
-            }
+            if (sentimentScore == null) return NotFound();
 
             _context.SentimentScore.Remove(sentimentScore);
             await _context.SaveChangesAsync();

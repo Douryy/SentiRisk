@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentiRisk.Data;
@@ -23,40 +22,55 @@ namespace SentiRisk.Controllers
 
         // GET: api/Assets
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Asset>>> GetAsset()
+        public async Task<ActionResult<IEnumerable<ApiAssetDto>>> GetAsset()
         {
-            return await _context.Asset.ToListAsync();
+            var assets = await _context.Asset.ToListAsync();
+            return assets.Select(a => new ApiAssetDto
+            {
+                Id = a.Id,
+                Name = a.Name ?? string.Empty,
+                Ticker = a.Ticker ?? string.Empty,
+                Sector = a.Sector ?? string.Empty,
+                CurrentPrice = a.CurrentPrice
+            }).ToList();
         }
 
         // GET: api/Assets/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Asset>> GetAsset(int id)
+        public async Task<ActionResult<ApiAssetDto>> GetAsset(int id)
         {
-            //  var asset = await _context.Asset.FindAsync(id);
             var asset = await _context.Asset
                   .Include(a => a.ListeNews!)
                       .ThenInclude(n => n.ListeSentimentScores)
                   .FirstOrDefaultAsync(a => a.Id == id);
 
-            if (asset == null)
-            {
-                return NotFound();
-            }
+            if (asset == null) return NotFound();
 
-            return asset;
+            return new ApiAssetDto
+            {
+                Id = asset.Id,
+                Name = asset.Name ?? string.Empty,
+                Ticker = asset.Ticker ?? string.Empty,
+                Sector = asset.Sector ?? string.Empty,
+                CurrentPrice = asset.CurrentPrice
+            };
         }
 
         // PUT: api/Assets/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutAsset(int id, Asset asset)
+        public async Task<IActionResult> PutAsset(int id, ApiAssetCreateDto dto)
         {
-            if (id != asset.Id)
-            {
-                return BadRequest();
-            }
+            if (dto == null) return BadRequest();
 
-            _context.Entry(asset).State = EntityState.Modified;
+            var existing = await _context.Asset.FindAsync(id);
+            if (existing == null) return NotFound();
+
+            existing.Name = dto.Name;
+            existing.Ticker = dto.Ticker?.ToUpper();
+            existing.Sector = dto.Sector;
+            existing.CurrentPrice = dto.CurrentPrice;
+
+            _context.Entry(existing).State = EntityState.Modified;
 
             try
             {
@@ -64,38 +78,46 @@ namespace SentiRisk.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!AssetExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                if (!AssetExists(id)) return NotFound();
+                throw;
             }
 
             return NoContent();
         }
 
         // POST: api/Assets
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Asset>> PostAsset(Asset asset)
+        public async Task<ActionResult<ApiAssetDto>> PostAsset(ApiAssetCreateDto dto)
         {
-            // 1. Normalisation : Ticker toujours en majuscules
-            asset.Ticker = asset.Ticker?.ToUpper();
+            if (dto == null) return BadRequest();
 
-            // 2. Sécurité : Prix positif uniquement
-            if (asset.CurrentPrice < 0) return BadRequest("Le prix ne peut pas être négatif.");
+            var ticker = dto.Ticker?.ToUpper();
 
-            // 3. Unicité : Pas deux fois le même Ticker en base
-            if (await _context.Asset.AnyAsync(a => a.Ticker == asset.Ticker))
+            if (dto.CurrentPrice < 0) return BadRequest("Le prix ne peut pas être négatif.");
+            if (await _context.Asset.AnyAsync(a => a.Ticker == ticker))
                 return Conflict("Cet actif existe déjà (Ticker en double).");
+
+            var asset = new Asset
+            {
+                Name = dto.Name,
+                Ticker = ticker,
+                Sector = dto.Sector,
+                CurrentPrice = dto.CurrentPrice
+            };
 
             _context.Asset.Add(asset);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetAsset", new { id = asset.Id }, asset);
+            var response = new ApiAssetDto
+            {
+                Id = asset.Id,
+                Name = asset.Name ?? string.Empty,
+                Ticker = asset.Ticker ?? string.Empty,
+                Sector = asset.Sector ?? string.Empty,
+                CurrentPrice = asset.CurrentPrice
+            };
+
+            return CreatedAtAction(nameof(GetAsset), new { id = asset.Id }, response);
         }
 
         // DELETE: api/Assets/5
@@ -103,16 +125,10 @@ namespace SentiRisk.Controllers
         public async Task<IActionResult> DeleteAsset(int id)
         {
             var asset = await _context.Asset.FindAsync(id);
-            if (asset == null)
-            {
-                return NotFound();
-               
-            }
+            if (asset == null) return NotFound();
+
             var isUsed = await _context.PortfolioAsset.AnyAsync(pa => pa.AssetId == id);
-            if (isUsed)
-            {
-                return BadRequest("Impossible de supprimer : l'actif est présent dans un portfolio.");
-            }
+            if (isUsed) return BadRequest("Impossible de supprimer : l'actif est présent dans un portfolio.");
 
             _context.Asset.Remove(asset);
             await _context.SaveChangesAsync();

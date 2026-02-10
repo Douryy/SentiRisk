@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentiRisk.Data;
@@ -23,78 +22,107 @@ namespace SentiRisk.Controllers
 
         // GET: api/Users
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUser()
+        public async Task<ActionResult<IEnumerable<ApiUserDto>>> GetUser()
         {
-            return await _context.User.ToListAsync();
+            var users = await _context.User.Include(u => u.Role).ToListAsync();
+            return users.Select(u => new ApiUserDto
+            {
+                Id = u.Id,
+                UserName = u.UserName ?? string.Empty,
+                Email = u.Email ?? string.Empty,
+                Role = u.Role == null ? null : new ApiRoleDto
+                {
+                    Id = u.Role.Id,
+                    Name = u.Role.Name ?? string.Empty
+                }
+            }).ToList();
         }
 
         // GET: api/Users/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
+        public async Task<ActionResult<ApiUserDto>> GetUser(int id)
         {
-            //var user = await _context.User.FindAsync(id);
             var user = await _context.User.Include(u => u.Role).Include(u => u.ListePortfolios).FirstOrDefaultAsync(u => u.Id == id);
+            if (user == null) return NotFound();
 
-            if (user == null)
+            return new ApiUserDto
             {
-                return NotFound();
-            }
-
-            return user;
+                Id = user.Id,
+                UserName = user.UserName ?? string.Empty,
+                Email = user.Email ?? string.Empty,
+                Role = user.Role == null ? null : new ApiRoleDto
+                {
+                    Id = user.Role.Id,
+                    Name = user.Role.Name ?? string.Empty
+                }
+            };
         }
 
         // PUT: api/Users/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutUser(int id, User user)
+        public async Task<IActionResult> PutUser(int id, ApiUserCreateDto dto)
         {
-            if (id != user.Id)
-            {
-                return BadRequest();
-            }
+            if (dto == null) return BadRequest();
 
-            _context.Entry(user).State = EntityState.Modified;
+            var existing = await _context.User.FindAsync(id);
+            if (existing == null) return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!UserExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            if (!await _context.Role.AnyAsync(r => r.Id == dto.RoleId))
+                return BadRequest("Le RoleId spécifié n'existe pas.");
+
+            // Vérifier unicité email/username si modifiés
+            if (await _context.User.AnyAsync(u => u.Id != id && (u.Email == dto.Email || u.UserName == dto.UserName)))
+                return Conflict("L'email ou l'username est déjà utilisé.");
+
+            existing.UserName = dto.UserName;
+            existing.Email = dto.Email;
+            existing.PasswordHash = dto.PasswordHash;
+            existing.RoleId = dto.RoleId;
+
+            _context.Entry(existing).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
         // POST: api/Users
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<User>> PostUser(User user)
+        public async Task<ActionResult<ApiUserDto>> PostUser(ApiUserCreateDto dto)
         {
-            // 1. Vérifier si le rôle existe
-            if (!await _context.Role.AnyAsync(r => r.Id == user.RoleId))
-            {
-                return BadRequest("Le RoleId spécifié n'existe pas.");
-            }
+            if (dto == null) return BadRequest();
 
-            // 2. Vérifier si l'email ou l'username est déjà pris
-            if (await _context.User.AnyAsync(u => u.Email == user.Email || u.UserName == user.UserName))
-            {
+            if (!await _context.Role.AnyAsync(r => r.Id == dto.RoleId))
+                return BadRequest("Le RoleId spécifié n'existe pas.");
+
+            if (await _context.User.AnyAsync(u => u.Email == dto.Email || u.UserName == dto.UserName))
                 return Conflict("L'utilisateur ou l'email existe déjà.");
-            }
+
+            var user = new User
+            {
+                UserName = dto.UserName,
+                Email = dto.Email,
+                PasswordHash = dto.PasswordHash,
+                RoleId = dto.RoleId
+            };
 
             _context.User.Add(user);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetUser", new { id = user.Id }, user);
+            var created = await _context.User.Include(u => u.Role).FirstOrDefaultAsync(u => u.Id == user.Id);
+
+            var response = new ApiUserDto
+            {
+                Id = created!.Id,
+                UserName = created.UserName ?? string.Empty,
+                Email = created.Email ?? string.Empty,
+                Role = created.Role == null ? null : new ApiRoleDto
+                {
+                    Id = created.Role.Id,
+                    Name = created.Role.Name ?? string.Empty
+                }
+            };
+
+            return CreatedAtAction(nameof(GetUser), new { id = response.Id }, response);
         }
 
         // DELETE: api/Users/5
@@ -102,20 +130,12 @@ namespace SentiRisk.Controllers
         public async Task<IActionResult> DeleteUser(int id)
         {
             var user = await _context.User.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
+            if (user == null) return NotFound();
 
             _context.User.Remove(user);
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-
-        private bool UserExists(int id)
-        {
-            return _context.User.Any(e => e.Id == id);
         }
     }
 }

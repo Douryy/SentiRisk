@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using SentiRisk.Data;
@@ -23,65 +22,87 @@ namespace SentiRisk.Controllers
 
         // GET: api/Scenarios
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Scenario>>> GetScenario()
+        public async Task<ActionResult<IEnumerable<ApiScenarioDto>>> GetScenario()
         {
-            return await _context.Scenario.ToListAsync();
+            var scenarios = await _context.Scenario.ToListAsync();
+            return scenarios.Select(s => new ApiScenarioDto
+            {
+                Id = s.Id,
+                ScenarioName = s.ScenarioName ?? string.Empty,
+                Description = s.Description ?? string.Empty,
+                ImpactFactor = s.ImpactFactor,
+                TargetSector = s.TargetSector ?? string.Empty,
+                CreatedAt = s.CreatedAt
+            }).ToList();
         }
 
         // GET: api/Scenarios/5
         [HttpGet("{id}")]
-        public async Task<ActionResult<Scenario>> GetScenario(int id)
+        public async Task<ActionResult<ApiScenarioDto>> GetScenario(int id)
         {
             var scenario = await _context.Scenario.FindAsync(id);
+            if (scenario == null) return NotFound();
 
-            if (scenario == null)
+            return new ApiScenarioDto
             {
-                return NotFound();
-            }
-
-            return scenario;
+                Id = scenario.Id,
+                ScenarioName = scenario.ScenarioName ?? string.Empty,
+                Description = scenario.Description ?? string.Empty,
+                ImpactFactor = scenario.ImpactFactor,
+                TargetSector = scenario.TargetSector ?? string.Empty,
+                CreatedAt = scenario.CreatedAt
+            };
         }
 
         // PUT: api/Scenarios/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}")]
-        public async Task<IActionResult> PutScenario(int id, Scenario scenario)
+        public async Task<IActionResult> PutScenario(int id, ApiScenarioCreateDto dto)
         {
-            if (id != scenario.Id)
-            {
-                return BadRequest();
-            }
+            if (dto == null) return BadRequest();
 
-            _context.Entry(scenario).State = EntityState.Modified;
+            var existing = await _context.Scenario.FindAsync(id);
+            if (existing == null) return NotFound();
 
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!ScenarioExists(id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
+            existing.ScenarioName = dto.ScenarioName;
+            existing.Description = dto.Description;
+            existing.ImpactFactor = dto.ImpactFactor;
+            existing.TargetSector = dto.TargetSector;
+
+            _context.Entry(existing).State = EntityState.Modified;
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
 
         // POST: api/Scenarios
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPost]
-        public async Task<ActionResult<Scenario>> PostScenario(Scenario scenario)
+        public async Task<ActionResult<ApiScenarioDto>> PostScenario(ApiScenarioCreateDto dto)
         {
+            if (dto == null) return BadRequest();
+
+            var scenario = new Scenario
+            {
+                ScenarioName = dto.ScenarioName,
+                Description = dto.Description,
+                ImpactFactor = dto.ImpactFactor,
+                TargetSector = dto.TargetSector,
+                CreatedAt = DateTime.Now
+            };
+
             _context.Scenario.Add(scenario);
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetScenario", new { id = scenario.Id }, scenario);
+            var response = new ApiScenarioDto
+            {
+                Id = scenario.Id,
+                ScenarioName = scenario.ScenarioName ?? string.Empty,
+                Description = scenario.Description ?? string.Empty,
+                ImpactFactor = scenario.ImpactFactor,
+                TargetSector = scenario.TargetSector ?? string.Empty,
+                CreatedAt = scenario.CreatedAt
+            };
+
+            return CreatedAtAction(nameof(GetScenario), new { id = response.Id }, response);
         }
 
         // DELETE: api/Scenarios/5
@@ -89,20 +110,12 @@ namespace SentiRisk.Controllers
         public async Task<IActionResult> DeleteScenario(int id)
         {
             var scenario = await _context.Scenario.FindAsync(id);
-            if (scenario == null)
-            {
-                return NotFound();
-            }
+            if (scenario == null) return NotFound();
 
             _context.Scenario.Remove(scenario);
             await _context.SaveChangesAsync();
 
             return NoContent();
-        }
-
-        private bool ScenarioExists(int id)
-        {
-            return _context.Scenario.Any(e => e.Id == id);
         }
     }
 }
