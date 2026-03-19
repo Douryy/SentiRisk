@@ -27,6 +27,14 @@ namespace SentiRiskWeb.Services
 
             return apiPortfolios.Select(MapToPortfolio).ToList();
         }
+        public async Task<List<ScenarioDto>> GetScenariosAsync()
+        {
+            var response = await _http.GetAsync("api/Scenarios");
+            response.EnsureSuccessStatusCode();
+            var json = await response.Content.ReadAsStringAsync();
+            return JsonSerializer.Deserialize<List<ScenarioDto>>(json, _jsonOptions)
+                   ?? new List<ScenarioDto>();
+        }
 
         // ===== Mapping API → Web =====
         private static PortfolioDto MapToPortfolio(ApiPortfolioDto api)
@@ -51,7 +59,8 @@ namespace SentiRiskWeb.Services
                     Ticker = pa.Asset.Ticker,
                     Sector = pa.Asset.Sector,
                     CurrentPrice = pa.Asset.CurrentPrice,
-                    Weight = pa.Weight
+                    Weight = pa.Weight,
+                    StressImpact = pa.Asset.StressImpact,
                 });
             }
 

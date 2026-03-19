@@ -15,5 +15,6 @@ namespace SentiRisk.Models
         public decimal CurrentPrice { get; set; }
         public virtual ICollection<PortfolioAsset>? ListePortfolioAssets { get; set; }
         public virtual ICollection<News>? ListeNews { get; set; }
+        public decimal StressImpact { get; set; }
     }
 }

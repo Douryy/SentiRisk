@@ -9,7 +9,6 @@ namespace SentiRisk.Data
     {
         public static void Seed(SentiRiskContext context)
         {
-            // Si déjà des rôles, on considère la BDD déjà initialisée
             if (context.Role.Any()) return;
 
             // Roles
@@ -54,7 +53,7 @@ namespace SentiRisk.Data
             context.Asset.AddRange(apple, msft);
             context.SaveChanges();
 
-            // Portfolio for Alice
+            // Portfolio
             var alicePortfolio = new Portfolio
             {
                 Name = "Alice Portfolio",
@@ -64,7 +63,7 @@ namespace SentiRisk.Data
             context.Portfolio.Add(alicePortfolio);
             context.SaveChanges();
 
-            // PortfolioAssets (poids qui totalisent 1.0)
+            // PortfolioAssets
             var pa1 = new PortfolioAsset
             {
                 PortfolioId = alicePortfolio.Id,
@@ -114,7 +113,7 @@ namespace SentiRisk.Data
             context.SentimentScore.AddRange(s1, s2);
             context.SaveChanges();
 
-            // Scenario exemple
+            // Scenario
             var scenario = new Scenario
             {
                 ScenarioName = "Choc Pétrolier",
@@ -127,4 +126,4 @@ namespace SentiRisk.Data
             context.SaveChanges();
         }
     }
-}
+}   

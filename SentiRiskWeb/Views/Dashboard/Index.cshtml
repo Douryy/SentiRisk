@@ -9,6 +9,12 @@
         if (value >= 10) return "lvl-mid";
         return "lvl-low";
     }
+    public string StressClass(decimal impact)
+{
+    if (impact >= 20) return "lvl-high";
+    if (impact >= 10) return "lvl-mid";
+    return "lvl-low";
+}
 
     // Convert decimal -> string invariant
     public string D(decimal d) => d.ToString("0.##", CultureInfo.InvariantCulture);
@@ -347,7 +353,7 @@
                     <h2>@p.Name</h2>
                     <div class="subtitle">@p.Description</div>
                 </div>
-                <span class="chip">Poids total: @D(totalWeight)% • Actifs: @assetCount</span>
+                <span class="chip">Poids total: @D(totalWeight * 100)% • Actifs: @assetCount</span
             </div>
 
             <div class="grid">
@@ -361,14 +367,20 @@
                         <span class="badge"><span class="dot" style="background:var(--violet); box-shadow:0 0 0 4px rgba(167,139,250,.12)"></span>Portefeuille</span>
                     </div>
                     <div class="muted" style="margin-top:10px;">
-                        Total poids déclaré: <strong>@D(totalWeight)%</strong>
-                        @if (totalWeight != 100m)
+                      Total poids déclaré: <strong>@D(totalWeight * 100)%</strong>
+                        @if (totalWeight != 1m)
                         {
                             <span class="pill" style="margin-left:8px;">
                                 <span class="mini lvl-mid"></span>
                                 Attention: ≠ 100%
                             </span>
                         }
+                    </div>
+                    <div class="muted" style="margin-top:6px;">
+                        Exposition totale:
+                        <strong style="color:var(--blue)">
+                            $@D(p.Assets?.Sum(a => a.Exposition) ?? 0)
+                        </strong>
                     </div>
                 </div>
 
@@ -406,24 +418,31 @@
                                     <th>Poids</th>
                                     <th>Visual</th>
                                     <th>Prix</th>
+                                    <th>Stress (%)</th>
+                                    <th>Exposition ($)</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (var a in (p.Assets ?? new()))
                                 {
                                     var lvl = LevelClass(a.Weight);
+                                    var stressCls = StressClass(a.StressImpact);
                                     var barWidth = (a.Weight > 100 ? 100 : (a.Weight < 0 ? 0 : a.Weight));
                                     <tr>
                                         <td>@a.Name</td>
                                         <td><span class="pill"><span class="mini @lvl"></span>@a.Ticker</span></td>
                                         <td><span class="chip">@a.Sector</span></td>
-                                        <td class="@lvl"><strong>@D(a.Weight)%</strong></td>
+                                        <td class="@lvl"><strong>@D(a.Weight * 100)%</strong></td>
                                         <td>
                                             <div class="bar" title="@D(a.Weight)%">
                                                 <span style="width:@D(barWidth)%;"></span>
                                             </div>
                                         </td>
                                         <td>@a.CurrentPrice</td>
+                                        <td class="@stressCls">
+                                         <strong>@D(a.StressImpact)%</strong>
+                                         </td>
+                                        <td><strong style="color:var(--blue)">@D(a.Exposition)</strong></td>
                                     </tr>
                                 }
                             </tbody>

@@ -1,23 +1,41 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
+﻿
+using Microsoft.AspNetCore.Mvc;
+using SentiRiskWeb.Services;
 using SentiRiskWeb.ViewModels;
 
 namespace SentiRiskWeb.Controllers
 {
     public class DashboardController : Controller
     {
+        private readonly ApiClientService _api;
         private readonly ILogger<DashboardController> _logger;
 
-        public DashboardController(ILogger<DashboardController> logger)
+        public DashboardController(ApiClientService api, ILogger<DashboardController> logger)
         {
+            _api = api;
             _logger = logger;
         }
 
-        // GET: /Dashboard/Index
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
-            var vm = new DashboardViewModel();
-            return View(vm);
+            try
+            {
+                var portfolios = await _api.GetPortfoliosAsync();
+                var scenarios = await _api.GetScenariosAsync();
+
+                var vm = new DashboardViewModel
+                {
+                    Portfolios = portfolios,
+                    Scenarios = scenarios
+                };
+
+                return View(vm);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors du chargement du dashboard");
+                return View(new DashboardViewModel());
+            }
         }
     }
 }
